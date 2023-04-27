@@ -1,0 +1,14 @@
+# https://github.com/compose-spec/compose-spec/blob/master/spec.md
+#
+# docker run -it --hostname OpenWrt_Build --name OpenWrt_Build_"$(date -u +%Y-%m-%d-%H-%M)" --user ${UID} -w /home/build -v ${PWD}:/home/build -v /etc/passwd:/etc/passwd:ro openwrt-openwrt_build /bin/bash
+
+services:
+  openwrt_build:
+    build: .
+    container_name: "OpenWrt_Build"
+    domainname: "OpenWrt_Build"
+    working_dir: "/home/build"
+    volumes:
+      - "${PWD}:/home/build"
+      - "/etc/passwd:/etc/passwd:ro"
+    command: [ "/bin/bash" ]
