@@ -89,6 +89,7 @@ prepare-tmpinfo: FORCE
 	./scripts/package-metadata.pl usergroup tmp/.packageinfo > tmp/.packageusergroup || { rm -f tmp/.packageusergroup; false; }
 	touch $(TOPDIR)/tmp/.build
 
+# 如果 .config 不存在 或者 .config 中没有指定 CONFIG_HAVE_DOT_CONFIG, 则如果存在 $(HOME)/.openwrt/defconfig 则使用其作为config
 .config: ./scripts/config/conf $(if $(CONFIG_HAVE_DOT_CONFIG),,prepare-tmpinfo)
 	@+if [ \! -e .config ] || ! grep CONFIG_HAVE_DOT_CONFIG .config >/dev/null; then \
 		[ -e $(HOME)/.openwrt/defconfig ] && cp $(HOME)/.openwrt/defconfig .config; \
@@ -176,6 +177,7 @@ kernel_nconfig: prepare_kernel_conf
 kernel_xconfig: prepare_kernel_conf
 	$(_SINGLE)$(NO_TRACE_MAKE) -C target/linux xconfig
 
+#: 检查 openwrt 的依赖, 并安装一些 host tool 到 staging 目录下
 $(STAGING_DIR_HOST)/.prereq-build: include/prereq-build.mk
 	mkdir -p tmp
 	@$(_SINGLE)$(NO_TRACE_MAKE) -j1 -r -s -f $(TOPDIR)/include/prereq-build.mk prereq 2>/dev/null || { \
@@ -214,6 +216,7 @@ check: .config FORCE
 val.%: FORCE
 	@+$(NO_TRACE_MAKE) -r -s $@ QUIET= V=s
 
+# Note: 这里只有指定了 -j 不带参数, 同时又指定了 V=99 才会成立
 WARN_PARALLEL_ERROR = $(if $(BUILD_LOG),,$(and $(filter -j,$(MAKEFLAGS)),$(findstring s,$(OPENWRT_VERBOSE))))
 
 ifeq ($(SDK),1)
@@ -225,8 +228,15 @@ ifeq ($(SDK),1)
 
 else
 
+#: 通配符双冒号规则
+# 双冒号规则特点:
+# 1. 同个目标不同依赖进行不同规则处理
+# 2. 一个没有依赖而只有规则的双冒号规则, 当引用此目标时, 规则的命令将会被无条件执行, 不管目标文件是否存在
 %::
+# -s 取消命令执行的时候的打印
+# -r 取消所有内嵌的隐含规则
 	@+$(PREP_MK) $(NO_TRACE_MAKE) -r -s prereq
+# 将结果与原始配置进行比较，如果有差异，则发出警告
 	@( \
 		cp .config tmp/.config; \
 		./scripts/config/conf $(KCONF_FLAGS) --defconfig=tmp/.config -w tmp/.config Config.in > /dev/null 2>&1; \
@@ -234,6 +244,7 @@ else
 			printf "$(_R)WARNING: your configuration is out of sync. Please run make menuconfig, oldconfig or defconfig!$(_N)\n" >&2; \
 		fi \
 	)
+# 此处会重新 make world 这个目标
 	@+$(ULIMIT_FIX) $(SUBMAKE) -r $@ $(if $(WARN_PARALLEL_ERROR), || { \
 		printf "$(_R)Build failed - please re-run with -j1 to see the real error message$(_N)\n" >&2; \
 		false; \
